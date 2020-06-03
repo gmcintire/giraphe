@@ -8,21 +8,20 @@ defmodule Giraphe.IO.HostScan do
   """
 
   @doc "Scans all hosts in `subnet`."
-  @callback scan(subnet :: NetAddr.t) :: :ok
+  @callback scan(subnet :: NetAddr.t()) :: :ok
 
   @doc "Tests whether 161/udp is open on `target`."
-  @callback udp_161_open?(target :: NetAddr.t) :: boolean
-
+  @callback udp_161_open?(target :: NetAddr.t()) :: boolean
 
   defp host_scanner do
-    Application.get_env :giraphe, :host_scanner
+    Application.get_env(:giraphe, :host_scanner)
   end
 
   def scan(subnet) do
-    host_scanner().scan subnet
+    host_scanner().scan(subnet)
   end
 
   def udp_161_open?(target) do
-    host_scanner().udp_161_open? target
+    host_scanner().udp_161_open?(target)
   end
 end

@@ -9,12 +9,11 @@ defmodule Giraphe.Host do
 
   defstruct [:ip, :mac]
 
-  @type ip  :: NetAddr.t
-  @type mac :: NetAddr.MAC_48.t
+  @type ip :: NetAddr.t()
+  @type mac :: NetAddr.MAC_48.t()
 
   @type t :: %__MODULE__{ip: ip, mac: mac}
 end
-
 
 defimpl String.Chars, for: Giraphe.Host do
   import Kernel, except: [to_string: 1]
@@ -24,24 +23,23 @@ defimpl String.Chars, for: Giraphe.Host do
 
   defp grep(pattern, path) do
     path
-    |> File.stream!
-    |> Stream.filter(& &1 =~ pattern)
-    |> Enum.to_list
+    |> File.stream!()
+    |> Stream.filter(&(&1 =~ pattern))
+    |> Enum.to_list()
   end
 
   defp resolve_oui_to_vendor(oui)
-      when byte_size(oui) == 6
-  do
+       when byte_size(oui) == 6 do
     match =
       ~r/^#{oui}/i
       |> grep(oui_list_path())
-      |> List.first
+      |> List.first()
 
     if match do
       match
-      |> String.trim_trailing
+      |> String.trim_trailing()
       |> String.split(" ", parts: 2)
-      |> List.last
+      |> List.last()
     else
       nil
     end
@@ -53,8 +51,8 @@ defimpl String.Chars, for: Giraphe.Host do
   defp resolve_ip_to_hostname(ip) do
     result =
       ip
-      |> :binary.bin_to_list
-      |> :inet.gethostbyaddr
+      |> :binary.bin_to_list()
+      |> :inet.gethostbyaddr()
 
     case result do
       {:ok, {:hostent, hostname, _, _, _, _}} ->
@@ -68,17 +66,17 @@ defimpl String.Chars, for: Giraphe.Host do
   def to_string(host) do
     hostname =
       host.ip
-      |> NetAddr.address
+      |> NetAddr.address()
       |> resolve_ip_to_hostname
 
     oui =
       "#{host.mac}"
       |> String.split(":")
       |> Enum.take(3)
-      |> Enum.join
+      |> Enum.join()
 
-    vendor = resolve_oui_to_vendor oui
+    vendor = resolve_oui_to_vendor(oui)
 
-    "#{NetAddr.address host.ip} (#{hostname}) => #{host.mac} (#{vendor})"
+    "#{NetAddr.address(host.ip)} (#{hostname}) => #{host.mac} (#{vendor})"
   end
 end

@@ -19,37 +19,39 @@ defmodule Giraphe.Discover.L3 do
     do: Enum.map(targets, &Giraphe.IO.get_router/1)
 
   defp any_similar_address?(addresses, address) do
-    Enum.any? addresses,
+    Enum.any?(
+      addresses,
       &(NetAddr.address(&1) == NetAddr.address(address))
+    )
   end
 
   defp find_old_router(routers, router) do
     case router do
       %{addresses: [address], routes: [_]} ->
         old_router =
-          Enum.find routers, fn %{addresses: addresses} ->
+          Enum.find(routers, fn %{addresses: addresses} ->
             any_similar_address?(addresses, address)
-          end
+          end)
 
         old_router
 
       _ ->
-        Enum.find routers, fn
+        Enum.find(routers, fn
           %{addresses: [address]} ->
             any_similar_address?(router.addresses, address)
 
           %{addresses: addresses} ->
             addresses == router.addresses
-        end
+        end)
     end
   end
 
   defp get_best_router(routers, new_router) do
     if old_router = find_old_router(routers, new_router) do
       best_router =
-        Enum.max_by [old_router, new_router], fn r ->
+        Enum.max_by([old_router, new_router], fn r ->
           length(r.addresses) + length(r.routes)
-        end
+        end)
 
       case best_router do
         ^old_router ->
@@ -58,14 +60,13 @@ defmodule Giraphe.Discover.L3 do
         ^new_router ->
           {new_router, old_router}
       end
-
     else
       {new_router, nil}
     end
   end
 
   defp _filter_new_routers([], routers),
-    do: Enum.reverse routers
+    do: Enum.reverse(routers)
 
   defp _filter_new_routers([new_router | tail], routers) do
     # TODO: Write tests that clearly express when this
@@ -75,15 +76,15 @@ defmodule Giraphe.Discover.L3 do
       {^new_router, nil} ->
         :ok = Logger.debug("No loop detected: '#{new_router.name}'.")
 
-        _filter_new_routers(tail, [new_router|routers])
+        _filter_new_routers(tail, [new_router | routers])
 
       {^new_router, old_router} ->
         :ok = Logger.info("Loop: new '#{new_router.name}' usurps '#{old_router.name}'.")
 
-        routers =
-          [ new_router |
-            Enum.filter(routers, &(&1 != old_router))
-          ]
+        routers = [
+          new_router
+          | Enum.filter(routers, &(&1 != old_router))
+        ]
 
         _filter_new_routers(tail, routers)
 
@@ -100,12 +101,9 @@ defmodule Giraphe.Discover.L3 do
   defp _get_next_targets_from_routers(routers) do
     for router <-
           routers,
-
         next_hop <-
           Utility.get_next_hops_from_routes(router.routes),
-
-        Utility.address_is_not_self(next_hop)
-    do
+        Utility.address_is_not_self(next_hop) do
       Utility.refine_address_length(
         next_hop,
         router.addresses,
@@ -118,8 +116,8 @@ defmodule Giraphe.Discover.L3 do
     routers
     |> _get_next_targets_from_routers
     |> Enum.filter(& &1)
-    |> Enum.sort
-    |> Enum.dedup
+    |> Enum.sort()
+    |> Enum.dedup()
   end
 
   defp _discover_routers([], routers),
@@ -131,7 +129,8 @@ defmodule Giraphe.Discover.L3 do
       |> fetch_routers
       |> filter_new_routers
 
-    all_routers  = Enum.concat(routers, new_routers)
+    all_routers = Enum.concat(routers, new_routers)
+
     next_targets =
       new_routers
       |> get_next_targets_from_routers
@@ -143,8 +142,8 @@ defmodule Giraphe.Discover.L3 do
 
     new_names = Enum.map(new_routers, & &1.name)
 
-    :ok = Utility.status "New routers discovered: " <> Enum.join(new_names, ", ")
-    :ok = Utility.status "Next targets: " <> Enum.join(next_targets, ", ")
+    :ok = Utility.status("New routers discovered: " <> Enum.join(new_names, ", "))
+    :ok = Utility.status("Next targets: " <> Enum.join(next_targets, ", "))
 
     _discover_routers(next_targets, all_routers)
   end
@@ -155,18 +154,16 @@ defmodule Giraphe.Discover.L3 do
     ["default", "via", default_gateway | _] =
       output
       |> String.split("\n")
-      |> Enum.filter(
-        &String.starts_with?(&1, "default via ")
-      )
-      |> List.first
-      |> String.split
+      |> Enum.filter(&String.starts_with?(&1, "default via "))
+      |> List.first()
+      |> String.split()
 
-    NetAddr.ip default_gateway
+    NetAddr.ip(default_gateway)
   end
 
-  @type target  :: NetAddr.t
+  @type target :: NetAddr.t()
   @type targets :: [target]
-  @type router  :: Router.t
+  @type router :: Router.t()
   @type routers :: [router]
 
   @doc """
@@ -175,13 +172,13 @@ defmodule Giraphe.Discover.L3 do
   Additional routers are discovered by polling next-hops
   found in routing tables.
   """
-  @spec discover_routers(targets)
-    :: routers
+  @spec discover_routers(targets) ::
+          routers
   def discover_routers([]),
-    do: discover_routers [get_default_gateway()]
+    do: discover_routers([get_default_gateway()])
 
   def discover_routers(targets) do
-    :ok = Utility.status "Seeding targets " <> Enum.join(targets, ", ")
+    :ok = Utility.status("Seeding targets " <> Enum.join(targets, ", "))
 
     targets
     |> _discover_routers([])
@@ -191,11 +188,11 @@ defmodule Giraphe.Discover.L3 do
   defp group_routers_by_incident_subnet(routers) do
     routers
     |> Enum.flat_map(fn router ->
-      Enum.map router.addresses, fn address ->
-        subnet = NetAddr.first_address address
+      Enum.map(router.addresses, fn address ->
+        subnet = NetAddr.first_address(address)
 
         {subnet, router}
-      end
+      end)
     end)
     |> Enum.group_by(
       fn {subnet, _} -> subnet end,
@@ -203,47 +200,53 @@ defmodule Giraphe.Discover.L3 do
     )
   end
 
-  @type host  :: Host.t
+  @type host :: Host.t()
   @type hosts :: [host]
 
-  @spec discover_hosts(routers)
-    :: hosts
+  @spec discover_hosts(routers) ::
+          hosts
   def discover_hosts(routers, ignored_subnets \\ []) do
     routers
     |> group_routers_by_incident_subnet
     |> Stream.filter(fn {subnet, _} ->
-      Utility.is_not_host_address subnet
+      Utility.is_not_host_address(subnet)
     end)
     |> Stream.filter(fn {subnet, _} ->
       subnet not in ignored_subnets
     end)
     |> Stream.flat_map(fn {subnet, incident_routers} ->
       hosts =
-        Enum.flat_map incident_routers,
+        Enum.flat_map(
+          incident_routers,
           &Giraphe.IO.enumerate_hosts(subnet, &1.polladdr)
+        )
 
-      Enum.reduce incident_routers, hosts, fn(r, acc) ->
+      Enum.reduce(incident_routers, hosts, fn r, acc ->
         address =
-          Enum.find r.addresses,
+          Enum.find(
+            r.addresses,
             &NetAddr.contains?(subnet, &1)
+          )
 
         gateway_host =
-          Enum.find acc,
+          Enum.find(
+            acc,
             &(NetAddr.address(&1.ip) ==
-              NetAddr.address(address)
-            )
+                NetAddr.address(address))
+          )
 
-        if is_nil gateway_host do
-          [ %Host{
+        if is_nil(gateway_host) do
+          [
+            %Host{
               ip: address,
-              mac: NetAddr.mac_48("00:00:00:00:00:00"),
+              mac: NetAddr.mac_48("00:00:00:00:00:00")
             }
             | acc
           ]
         else
           acc
         end
-      end
+      end)
     end)
     |> Enum.uniq_by(fn %{ip: ip} -> ip end)
   end

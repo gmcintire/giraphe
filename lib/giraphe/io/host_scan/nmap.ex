@@ -30,7 +30,7 @@ defmodule Giraphe.IO.HostScan.Nmap do
   Tests whether 161/udp is open on `target`.
   """
   def udp_161_open?(target) do
-    address = NetAddr.address target
+    address = NetAddr.address(target)
     port = 161
     args = ~w(nmap -n -oG - -sU -p #{port} #{address})
 

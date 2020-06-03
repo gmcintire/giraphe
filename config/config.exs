@@ -10,5 +10,4 @@ config :net_snmp_ex,
 config :giraphe,
   oui_list_path: "/usr/share/nmap/nmap-mac-prefixes"
 
-import_config "#{Mix.env}.exs"
-
+import_config "#{Mix.env()}.exs"

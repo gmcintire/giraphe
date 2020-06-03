@@ -7,25 +7,26 @@ defmodule Giraphe.IO.Query do
   A behaviour for querier implementations.
   """
 
-  @type query_object
-    :: :addresses
-     | :arp_cache
-     | :fdb
-     | :routes
-     | :sysname
-     | :sysdescr
+  @type query_object ::
+          :addresses
+          | :arp_cache
+          | :fdb
+          | :routes
+          | :sysname
+          | :sysdescr
 
   @callback query(
-    object :: query_object,
-    target :: NetAddr.t
-  ) :: {   :ok, NetAddr.t, query_object, any}
-     | {:error, NetAddr.t, query_object, any}
+              object :: query_object,
+              target :: NetAddr.t()
+            ) ::
+              {:ok, NetAddr.t(), query_object, any}
+              | {:error, NetAddr.t(), query_object, any}
 
   defp querier do
-    Application.get_env :giraphe, :querier
+    Application.get_env(:giraphe, :querier)
   end
 
   def query(object, target) do
-    querier().query object, target
+    querier().query(object, target)
   end
 end

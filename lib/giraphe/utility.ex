@@ -7,18 +7,18 @@ defmodule Giraphe.Utility do
 
   require Logger
 
-  @spec credentials
-    :: Keyword.t
+  @spec credentials ::
+          Keyword.t()
   def credentials,
     do: Application.get_env(:giraphe, :credentials)
 
-  @spec quiet?
-    :: boolean
+  @spec quiet? ::
+          boolean
   def quiet?,
-    do: Application.get_env :giraphe, :quiet
+    do: Application.get_env(:giraphe, :quiet)
 
-  @spec status(String.t)
-    :: :ok
+  @spec status(String.t()) ::
+          :ok
   def status(message) do
     if not quiet?(),
       do: :ok = IO.puts(:stderr, message)
@@ -26,59 +26,61 @@ defmodule Giraphe.Utility do
     :ok
   end
 
-  @type prefix   :: NetAddr.t
-  @type address  :: NetAddr.t
+  @type prefix :: NetAddr.t()
+  @type address :: NetAddr.t()
   @type prefixes :: [prefix]
 
-  @spec find_prefix_containing_address(prefixes, address)
-    :: prefix
-     | nil
+  @spec find_prefix_containing_address(prefixes, address) ::
+          prefix
+          | nil
   def find_prefix_containing_address(prefixes, address) do
-    Enum.find prefixes,
+    Enum.find(
+      prefixes,
       &NetAddr.contains?(&1, address)
+    )
   end
 
-  @type destination :: NetAddr.t
-  @type next_hop    :: NetAddr.t
-  @type route       :: {destination, next_hop}
-  @type routes      :: [route]
+  @type destination :: NetAddr.t()
+  @type next_hop :: NetAddr.t()
+  @type route :: {destination, next_hop}
+  @type routes :: [route]
 
-  @spec find_route_containing_address(routes, address)
-    :: route
-     | nil
+  @spec find_route_containing_address(routes, address) ::
+          route
+          | nil
   def find_route_containing_address(routes, address) do
-    Enum.find routes, fn {destination, _} ->
+    Enum.find(routes, fn {destination, _} ->
       NetAddr.contains?(destination, address)
-    end
+    end)
   end
 
   @type destinations :: [destination]
 
-  @spec get_destinations_from_routes(routes)
-    :: destinations
+  @spec get_destinations_from_routes(routes) ::
+          destinations
   def get_destinations_from_routes(routes) do
     routes
     |> unzip_and_get_elem(0)
-    |> Enum.sort
-    |> Enum.dedup
+    |> Enum.sort()
+    |> Enum.dedup()
   end
 
   @type next_hops :: [next_hop]
 
-  @spec get_next_hops_from_routes(routes)
-    :: next_hops
+  @spec get_next_hops_from_routes(routes) ::
+          next_hops
   def get_next_hops_from_routes([]),
     do: []
 
   def get_next_hops_from_routes(routes) do
     routes
     |> unzip_and_get_elem(1)
-    |> Enum.sort
-    |> Enum.dedup
+    |> Enum.sort()
+    |> Enum.dedup()
   end
 
-  @spec is_connected_route(route)
-    :: boolean
+  @spec is_connected_route(route) ::
+          boolean
   def is_connected_route(route) do
     case route do
       {_destination, next_hop} ->
@@ -89,88 +91,85 @@ defmodule Giraphe.Utility do
     end
   end
 
-  @spec is_host_address(address)
-    :: boolean
+  @spec is_host_address(address) ::
+          boolean
   def is_host_address(%{} = address) do
-    NetAddr.first_address(address)
-    == NetAddr.last_address(address)
+    NetAddr.first_address(address) ==
+      NetAddr.last_address(address)
   end
 
   def is_host_address(_),
     do: false
 
-  @spec is_not_host_address(address)
-    :: boolean
+  @spec is_not_host_address(address) ::
+          boolean
   def is_not_host_address(address),
-    do: ! is_host_address(address)
+    do: !is_host_address(address)
 
-  @spec is_not_default_address(prefix)
-    :: boolean
+  @spec is_not_default_address(prefix) ::
+          boolean
   def is_not_default_address(prefix) do
-    (   prefix != NetAddr.ip("0.0.0.0/0"))
-    && (prefix != NetAddr.ip("::/0"))
+    prefix != NetAddr.ip("0.0.0.0/0") &&
+      prefix != NetAddr.ip("::/0")
   end
 
-  @spec address_is_self(address)
-    :: boolean
+  @spec address_is_self(address) ::
+          boolean
   def address_is_self(address) do
-    (   NetAddr.ip("0.0.0.0") == address)
-    || (NetAddr.ip("::")      == address)
+    NetAddr.ip("0.0.0.0") == address ||
+      NetAddr.ip("::") == address
   end
 
-  @spec address_is_not_self(address)
-    :: boolean
+  @spec address_is_not_self(address) ::
+          boolean
   def address_is_not_self(address) do
-    ! address_is_self(address)
+    !address_is_self(address)
   end
 
-  @spec address_is_localhost(address)
-    :: boolean
+  @spec address_is_localhost(address) ::
+          boolean
   def address_is_localhost(address) do
     "127.0.0.0/8"
-    |> NetAddr.ip
+    |> NetAddr.ip()
     |> NetAddr.contains?(address)
   end
 
-  @spec address_is_not_localhost(address)
-    :: boolean
+  @spec address_is_not_localhost(address) ::
+          boolean
   def address_is_not_localhost(address),
-    do: ! address_is_localhost(address)
+    do: !address_is_localhost(address)
 
   defp _lookup_route_recursive([], _address),
     do: nil
 
   defp _lookup_route_recursive(routes, address) do
     with {destination, next_hop} <-
-           find_route_containing_address(routes, address)
-    do
-      if address_is_self(next_hop)
-         or destination == address
-      do
+           find_route_containing_address(routes, address) do
+      if address_is_self(next_hop) or
+           destination == address do
         destination
       else
         routes
-        |> Enum.filter(& &1 != {destination, next_hop})
+        |> Enum.filter(&(&1 != {destination, next_hop}))
         |> _lookup_route_recursive(next_hop)
       end
     end
   end
 
-  @spec lookup_route_recursive(routes, address)
-    :: destination
+  @spec lookup_route_recursive(routes, address) ::
+          destination
   def lookup_route_recursive(routes, address) do
     routes
-    |> Enum.sort
-    |> Enum.reverse
+    |> Enum.sort()
+    |> Enum.reverse()
     |> _lookup_route_recursive(address)
   end
 
   defp set_address_length_to_matching_address_length(
-    addresses,
-    address
-  ) do
-    match =
-      find_prefix_containing_address(addresses, address)
+         addresses,
+         address
+       ) do
+    match = find_prefix_containing_address(addresses, address)
 
     if match do
       NetAddr.address_length(
@@ -184,8 +183,8 @@ defmodule Giraphe.Utility do
 
   @type addresses :: [address]
 
-  @spec refine_address_length(address, addresses, routes)
-    :: address
+  @spec refine_address_length(address, addresses, routes) ::
+          address
   def refine_address_length(address, addresses, routes) do
     # We prefer addresses in the form of a prefix with ones
     # in the host portion because this provides context for
@@ -212,27 +211,23 @@ defmodule Giraphe.Utility do
              addresses,
              address
            ),
-
          nil <-
            set_address_length_to_matching_address_length(
              [lookup_route_recursive(routes, address)],
              address
            ),
-    do: address
+         do: address
   end
 
-  @type polladdr
-    :: NetAddr.IPv4.t
-     | NetAddr.IPv6.t
+  @type polladdr ::
+          NetAddr.IPv4.t()
+          | NetAddr.IPv6.t()
 
   @type device ::
-    %{any => any,
-      name: nil | String.t,
-      polladdr: polladdr,
-    }
+          %{any => any, name: nil | String.t(), polladdr: polladdr}
 
-  @spec trim_domain_from_device_sysname(device)
-    :: device
+  @spec trim_domain_from_device_sysname(device) ::
+          device
   def trim_domain_from_device_sysname(device) do
     if device.name == NetAddr.address(device.polladdr) do
       device
@@ -244,27 +239,27 @@ defmodule Giraphe.Utility do
           device
 
         [_, hostname] ->
-          %{device|name: hostname}
+          %{device | name: hostname}
       end
     end
   end
 
-  @type zipped :: [{any,any}, ...]
+  @type zipped :: [{any, any}, ...]
 
-  @spec unzip_and_get_elem(zipped, any)
-    :: any
+  @spec unzip_and_get_elem(zipped, any) ::
+          any
   def unzip_and_get_elem(zipped, e) do
     zipped
-    |> Enum.unzip
+    |> Enum.unzip()
     |> elem(e)
   end
 
   def evaluate_l2_template(
-    adjacencies,
-    switches,
-    template
-  ) do
-    current_datetime_utc = "#{DateTime.utc_now}"
+        adjacencies,
+        switches,
+        template
+      ) do
+    current_datetime_utc = "#{DateTime.utc_now()}"
 
     evaluate_l2_template(
       adjacencies,
@@ -275,19 +270,19 @@ defmodule Giraphe.Utility do
   end
 
   def evaluate_l2_template(
-    adjacencies,
-    switches,
-    template,
-    timestamp
-  ) do
-    nodes  = Enum.map(switches, &device_to_node/1)
+        adjacencies,
+        switches,
+        template,
+        timestamp
+      ) do
+    nodes = Enum.map(switches, &device_to_node/1)
+
     result =
       EEx.eval_string(
         template,
-        [ timestamp: timestamp,
-          switches: nodes,
-          edges: adjacencies,
-        ]
+        timestamp: timestamp,
+        switches: nodes,
+        edges: adjacencies
       )
 
     if is_binary(result) do
@@ -306,7 +301,7 @@ defmodule Giraphe.Utility do
   end
 
   def evaluate_l3_template(incidences, routers, template) do
-    current_datetime_utc = "#{DateTime.utc_now}"
+    current_datetime_utc = "#{DateTime.utc_now()}"
 
     evaluate_l3_template(
       incidences,
@@ -317,11 +312,11 @@ defmodule Giraphe.Utility do
   end
 
   def evaluate_l3_template(
-    incidences,
-    routers,
-    template,
-    timestamp
-  ) do
+        incidences,
+        routers,
+        template,
+        timestamp
+      ) do
     nodes =
       routers
       |> Enum.map(&device_to_node/1)
@@ -330,24 +325,23 @@ defmodule Giraphe.Utility do
     edges =
       incidences
       |> Enum.map(fn {_, subnet} -> subnet end)
-      |> Enum.sort
+      |> Enum.sort()
       |> Enum.map(fn
         <<_::binary>> = subnet ->
           subnet
 
         subnet ->
-          NetAddr.prefix subnet
+          NetAddr.prefix(subnet)
       end)
-      |> Enum.dedup
+      |> Enum.dedup()
 
     result =
       EEx.eval_string(
         template,
-        [ timestamp: timestamp,
-          routers: nodes,
-          edges: edges,
-          incidences: incidences,
-        ]
+        timestamp: timestamp,
+        routers: nodes,
+        edges: edges,
+        incidences: incidences
       )
 
     if is_binary(result) do

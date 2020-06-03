@@ -11,37 +11,37 @@ defmodule Giraphe.Render.GraphVizTest do
   @moduletag :integrated
 
   defp rendered(file),
-    do: Path.join ["examples", file]
+    do: Path.join(["examples", file])
 
   defp reference(file),
-    do: Path.join ["test/fixtures", file]
+    do: Path.join(["test/fixtures", file])
 
   test "Renders dot with GraphViz" do
     output_files =
       for format <- ["png", "svg"],
           suffix <- ["l2", "l3"],
+          do: "example-#{suffix}.#{format}"
 
-      do: "example-#{suffix}.#{format}"
+    _ = Enum.map(output_files, &File.rm(&1))
 
-    _ = Enum.map output_files, &File.rm(&1)
-
-    [ File.read!("test/fixtures/example_l2_graph.dot"),
+    [
+      File.read!("test/fixtures/example_l2_graph.dot"),
       File.read!("test/fixtures/example_l3_graph.dot")
+    ]
+    |> List.duplicate(2)
+    |> List.flatten()
+    |> Enum.zip(output_files)
+    |> Enum.map(fn {notation, file} ->
+      file
+      |> Path.extname()
+      |> String.trim_leading(".")
+      |> (&render_graph(notation, &1)).()
+      |> (&File.write!(rendered(file), &1)).()
+    end)
 
-    ] |> List.duplicate(2)
-      |> List.flatten
-      |> Enum.zip(output_files)
-      |> Enum.map(fn {notation, file} ->
-        file
-        |> Path.extname
-        |> String.trim_leading(".")
-        |> (&render_graph(notation, &1)).()
-        |> (&File.write!(rendered(file), &1)).()
-      end)
-
-    Enum.map output_files, fn file ->
-      assert File.read!(rendered file) ==
-        File.read!(reference file)
-    end
+    Enum.map(output_files, fn file ->
+      assert File.read!(rendered(file)) ==
+               File.read!(reference(file))
+    end)
   end
 end

@@ -15,38 +15,39 @@ defmodule Giraphe.IO.Query.NetSNMP do
   alias Giraphe.Utility
 
   defp get_agent(target),
-    do: URI.parse "snmp://#{target}"
+    do: URI.parse("snmp://#{target}")
 
   defp _try_credentials([], _fun, acc),
     do: acc
 
-  defp _try_credentials([credential|tail], fun, acc) do
-    with [{:error, reason} = error] <- fun.(credential)
-    do
-      :ok = Logger.info "Query failed using credential '#{inspect credential}': #{reason}."
+  defp _try_credentials([credential | tail], fun, acc) do
+    with [{:error, reason} = error] <- fun.(credential) do
+      :ok = Logger.info("Query failed using credential '#{inspect(credential)}': #{reason}.")
 
-      _try_credentials(tail, fun, [error|acc])
+      _try_credentials(tail, fun, [error | acc])
     end
   end
 
   defp try_credentials(fun) do
-    Utility.credentials
+    Utility.credentials()
     |> Keyword.get_values(:snmp)
     |> Enum.map(&NetSNMP.credential/1)
     |> _try_credentials(fun, [])
   end
 
   defp snmpget(snmp_object, target, context \\ "")
+
   defp snmpget(snmp_object, target, context) do
-    agent = get_agent target
+    agent = get_agent(target)
 
     (&NetSNMP.get(snmp_object, agent, &1, context))
     |> try_credentials
   end
 
   defp snmptable(snmp_object, target, context \\ "")
+
   defp snmptable(snmp_object, target, context) do
-    agent = get_agent target
+    agent = get_agent(target)
 
     (&NetSNMP.table(snmp_object, agent, &1, context))
     |> try_credentials
@@ -84,59 +85,59 @@ defmodule Giraphe.IO.Query.NetSNMP do
     do: "vlan-#{vlan_id}"
 
   defp get_fdb_by_vlan_id(target, vlan_id)
-      when is_integer vlan_id
-  do
+       when is_integer(vlan_id) do
     object = dot1d_tp_fdb_table_object()
-    context = vlan_id_to_context vlan_id
+    context = vlan_id_to_context(vlan_id)
     output = snmptable(object, target, context)
 
     case output do
       [] ->
-        :ok = Logger.info "No FDB entries for VLAN #{vlan_id} on '#{target}'."
+        :ok = Logger.info("No FDB entries for VLAN #{vlan_id} on '#{target}'.")
 
         []
 
-      [{:error, reason}|_] = error ->
-        :ok = Logger.debug "Unable to query FDB for '#{target}' on VLAN '#{inspect vlan_id}': #{reason}."
+      [{:error, reason} | _] = error ->
+        :ok =
+          Logger.debug(
+            "Unable to query FDB for '#{target}' on VLAN '#{inspect(vlan_id)}': #{reason}."
+          )
 
         error
 
       rows ->
         for row <- rows do
-          { String.to_integer(row.port),
-            NetAddr.mac_48(row.address),
-            vlan_id
-          }
+          {String.to_integer(row.port), NetAddr.mac_48(row.address), vlan_id}
         end
     end
   end
 
   defp get_port_mappings_by_vlan_id(target, vlan_id)
-      when is_integer vlan_id
-  do
+       when is_integer(vlan_id) do
     object = dot1d_base_port_table_object()
-    context = vlan_id_to_context vlan_id
+    context = vlan_id_to_context(vlan_id)
     output = snmptable(object, target, context)
 
     case output do
       [] ->
-        :ok = Logger.info "No port mappings for VLAN #{vlan_id} on '#{target}'."
+        :ok = Logger.info("No port mappings for VLAN #{vlan_id} on '#{target}'.")
 
         []
 
       [{:error, reason} | _] = error ->
-        :ok = Logger.debug "Unable to query dot1dBasePortTable for '#{target}' on VLAN '#{inspect vlan_id}': #{reason}."
+        :ok =
+          Logger.debug(
+            "Unable to query dot1dBasePortTable for '#{target}' on VLAN '#{inspect(vlan_id)}': #{
+              reason
+            }."
+          )
 
         error
 
       rows ->
         for row <- rows, into: %{} do
-          port_index =
-            String.replace(row.index, ~r/\[|\]/, "")
+          port_index = String.replace(row.index, ~r/\[|\]/, "")
 
-          { String.to_integer(port_index),
-            String.to_integer(row.ifindex)
-          }
+          {String.to_integer(port_index), String.to_integer(row.ifindex)}
         end
     end
   end
@@ -147,13 +148,13 @@ defmodule Giraphe.IO.Query.NetSNMP do
     |> Enum.filter(fn
       {:error, _} ->
         false
+
       _ ->
         true
     end)
-    |> Enum.reduce(%{}, fn(vlan_id, acc) ->
-      with %{} = map
-            <- get_port_mappings_by_vlan_id(target, vlan_id)
-      do
+    |> Enum.reduce(%{}, fn vlan_id, acc ->
+      with %{} = map <-
+             get_port_mappings_by_vlan_id(target, vlan_id) do
         Map.merge(acc, map)
       end
     end)
@@ -162,51 +163,58 @@ defmodule Giraphe.IO.Query.NetSNMP do
   defp ifindex_to_interface_map(target) do
     case _query(:interfaces, target) do
       [error: reason] ->
-        :ok = Logger.debug "Unable to query ifXTable for '#{target}': #{reason}."
+        :ok = Logger.debug("Unable to query ifXTable for '#{target}': #{reason}.")
 
         [error: reason]
 
       rows ->
-        for row <- rows, into: %{},
-          do: {row.index, row}
+        for row <- rows, into: %{}, do: {row.index, row}
     end
   end
 
   defp _query(:addresses, target) do
     object = ip_addr_table_object()
 
-    with [%{} | _] = rows
-           <- snmptable(object, target)
-    do
-      Enum.map rows,
+    with [%{} | _] = rows <-
+           snmptable(object, target) do
+      Enum.map(
+        rows,
         &NetAddr.ip(&1.addr, &1.netmask)
+      )
     end
   end
 
   defp _query(:arp_cache, target) do
     object = ip_net_to_media_table_object()
 
-    with [%{} | _] = rows <- snmptable(object, target)
-    do
-      Enum.reduce rows, [], fn(row, acc) ->
-        netaddress  = NetAddr.ip row.netaddress
-        physaddress = NetAddr.mac_48 row.physaddress
+    with [%{} | _] = rows <- snmptable(object, target) do
+      Enum.reduce(rows, [], fn row, acc ->
+        netaddress = NetAddr.ip(row.netaddress)
+        physaddress = NetAddr.mac_48(row.physaddress)
 
         case {netaddress, physaddress} do
           {{:error, _}, _} ->
-            :ok = Logger.warn "Received bad ARP entry from #{target}: #{row.netaddress} => #{row.physaddress}"
+            :ok =
+              Logger.warn(
+                "Received bad ARP entry from #{target}: #{row.netaddress} => #{row.physaddress}"
+              )
 
             acc
 
           {_, {:error, _}} ->
-            :ok = Logger.debug "Received incomplete ARP entry from #{target}: #{row.netaddress} => #{row.physaddress}"
+            :ok =
+              Logger.debug(
+                "Received incomplete ARP entry from #{target}: #{row.netaddress} => #{
+                  row.physaddress
+                }"
+              )
 
             acc
 
           arp_entry ->
-            [arp_entry|acc]
+            [arp_entry | acc]
         end
-      end
+      end)
     end
   end
 
@@ -217,6 +225,7 @@ defmodule Giraphe.IO.Query.NetSNMP do
       |> Stream.filter(fn
         {:error, _} ->
           false
+
         _ ->
           true
       end)
@@ -224,45 +233,43 @@ defmodule Giraphe.IO.Query.NetSNMP do
       |> Enum.split_with(fn
         {:error, _} ->
           false
+
         _ ->
           true
       end)
 
-    with [{_, _, _}|_] = fdb_entries
-           <- errors ++ fdb_entries,
-
-         %{} = port_to_ifindex
-           <- port_index_to_ifindex_map(target),
-
-         %{} = ifindex_to_interface
-           <- ifindex_to_interface_map(target)
-    do
+    with [{_, _, _} | _] = fdb_entries <-
+           errors ++ fdb_entries,
+         %{} = port_to_ifindex <-
+           port_index_to_ifindex_map(target),
+         %{} = ifindex_to_interface <-
+           ifindex_to_interface_map(target) do
       for {port, address, vlan} <- fdb_entries do
         ifindex = port_to_ifindex[port]
 
         if interface = ifindex_to_interface[ifindex] do
           {interface.name, address, vlan}
         else
-          :ok = Logger.debug "Unable to resolve interface for {#{port}, #{address}, #{vlan}}."
+          :ok = Logger.debug("Unable to resolve interface for {#{port}, #{address}, #{vlan}}.")
 
           nil
         end
-      end |> Enum.filter(& &1 != nil)
+      end
+      |> Enum.filter(&(&1 != nil))
     end
   end
 
   defp _query(:interfaces, target) do
     object = if_x_table_object()
 
-    with [%{} | _] = rows <- snmptable(object, target)
-    do
+    with [%{} | _] = rows <- snmptable(object, target) do
       for row <- rows do
         index =
           row.index
           |> String.replace(~r/\[|\]/, "")
-          |> String.to_integer
+          |> String.to_integer()
 
-        %{row|index: index}
+        %{row | index: index}
       end
     end
   end
@@ -270,27 +277,34 @@ defmodule Giraphe.IO.Query.NetSNMP do
   defp _query(:routes, target) do
     object = ip_cidr_route_table_object()
 
-    with [%{} | _] = rows <- snmptable(object, target)
-    do
-      Enum.reduce rows, [], fn(row, acc) ->
+    with [%{} | _] = rows <- snmptable(object, target) do
+      Enum.reduce(rows, [], fn row, acc ->
         destination = NetAddr.ip(row.dest, row.mask)
-        nexthop     = NetAddr.ip(row.nexthop)
+        nexthop = NetAddr.ip(row.nexthop)
 
         case {destination, nexthop} do
           {{:error, _}, _} ->
-            :ok = Logger.warn "Received bad destination or mask from #{target}: #{row.dest}/#{row.mask} -> #{row.nexthop}"
+            :ok =
+              Logger.warn(
+                "Received bad destination or mask from #{target}: #{row.dest}/#{row.mask} -> #{
+                  row.nexthop
+                }"
+              )
 
             acc
 
           {_, {:error, _}} ->
-            :ok = Logger.warn "Received bad nexthop from #{target}: #{row.dest}/#{row.mask} -> #{row.nexthop}"
+            :ok =
+              Logger.warn(
+                "Received bad nexthop from #{target}: #{row.dest}/#{row.mask} -> #{row.nexthop}"
+              )
 
             acc
 
           route ->
-            [route|acc]
+            [route | acc]
         end
-      end
+      end)
     end
   end
 
@@ -298,41 +312,40 @@ defmodule Giraphe.IO.Query.NetSNMP do
     object = sysname_object()
 
     with [ok: %{value: sysname}] <- snmpget(object, target),
-    do: sysname
+         do: sysname
   end
 
   defp _query(:sysdescr, target) do
     object = sysdescr_object()
 
     with [ok: %{value: sysdescr}] <- snmpget(object, target),
-    do: sysdescr
+         do: sysdescr
   end
 
   defp _query(:vlans, target) do
     object = vtp_vlan_table_object()
 
-    with [%{} | _] = rows <- snmptable(object, target)
-    do
+    with [%{} | _] = rows <- snmptable(object, target) do
       for row <- rows do
         [_, vlan] = Regex.run(~r/^.*\[(\d+)\]$/, row.index)
 
-        String.to_integer vlan
+        String.to_integer(vlan)
       end
     end
   end
 
-  @type query_object
-    :: :addresses
-     | :arp_cache
-     | :fdb
-     | :routes
-     | :sysname
+  @type query_object ::
+          :addresses
+          | :arp_cache
+          | :fdb
+          | :routes
+          | :sysname
 
-  @type target :: NetAddr.t
+  @type target :: NetAddr.t()
 
-  @spec query(query_object, target)
-    :: {   :ok, target, query_object, any}
-     | {:error, target, query_object, any}
+  @spec query(query_object, target) ::
+          {:ok, target, query_object, any}
+          | {:error, target, query_object, any}
   def query(object, target) do
     case _query(object, target) do
       [{:error, reason} | _] ->
@@ -347,4 +360,3 @@ defmodule Giraphe.IO.Query.NetSNMP do
     end
   end
 end
-

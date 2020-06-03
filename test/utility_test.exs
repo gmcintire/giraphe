@@ -9,20 +9,16 @@ defmodule Giraphe.UtilityTest do
   import NetAddr, only: [ip: 1]
 
   test "Trims the domain from an FQDN name in a device" do
-    device =
-      %{name: "R1.test.net",
-        polladdr: ip("192.0.2.1")
-      }
+    device = %{name: "R1.test.net", polladdr: ip("192.0.2.1")}
 
     assert trim_domain_from_device_sysname(device) ==
-      %{device|name: "R1"}
+             %{device | name: "R1"}
   end
 
   test """
   Terminates recursive route lookup in presence of
   loop
-  """
-  do
+  """ do
     routes = [{ip("192.0.2.0/30"), ip("192.0.2.1")}]
     address = ip("192.0.2.1")
 
